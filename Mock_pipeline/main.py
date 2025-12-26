@@ -3,68 +3,74 @@ import sys
 import os
 import numpy as np
 
-from modules.segmentation.intelligent_scissors import IntelligentScissorsApp
+# Import các module đã viết
 from modules.inpainting.strategies import TraditionalInpainting
+# Import thêm class Deep Learning mới viết
+from modules.inpainting.deep_strategies import DeepInpaintingStrategy
+
+# --- THAY ĐỔI: Import Intelligent Scissors thay cho Mock Model ---
+from modules.segmentation.intelligent_scissors import IntelligentScissorsApp
+
+# --- HƯỚNG DẪN TÍCH HỢP SAU NÀY ---
+# Khi teamate của bạn xong việc (ví dụ họ tạo class: AISegmentation trong file ai_seg.py)
+# Bạn chỉ cần:
+# 1. Import class của họ: `from modules.segmentation.ai_seg import AISegmentation`
+# 2. Thay thế dòng khởi tạo `seg_model` bên dưới.
+# ----------------------------------
 
 def main():
-    """
-    Main application entry point.
-    Workflow: Segmentation (Interactive) -> Inpainting (Automatic)
-    """
+    # 1. Cấu hình đường dẫn ảnh
+    image_path = "inputs/test_image2.jpg" # Hãy đảm bảo bạn có ảnh này
     
-    # =========================
-    # SETUP & VALIDATION
-    # =========================
-    image_path = "inputs/test_image2.jpg"
-    
-    if not os.path.exists(image_path):
-        print(f"❌ Lỗi: Không tìm thấy file '{image_path}'")
-        sys.exit(1)
-    
+    # Tạo thư mục outputs nếu chưa có
     output_dir = "outputs"
     os.makedirs(output_dir, exist_ok=True)
     
-    # Đọc ảnh gốc
+    # Kiểm tra file tồn tại
+    if not os.path.exists(image_path):
+        print(f"Lỗi: Không tìm thấy file {image_path}. Hãy copy 1 ảnh có vật thể màu đỏ vào folder inputs/")
+        # Tạo ảnh giả để demo nếu không có ảnh thật
+        img = 255 * np.ones((300, 300, 3), dtype=np.uint8)
+        cv2.circle(img, (150, 150), 50, (0, 0, 255), -1) # Vẽ hình tròn đỏ
+        cv2.imwrite(image_path, img)
+        print("Đã tạo ảnh mẫu test_image.jpg (Hình tròn đỏ trên nền trắng)")
+
+    # Load ảnh
     original_image = cv2.imread(image_path)
-    if original_image is None:
-        print(f"❌ Lỗi: Không thể đọc ảnh '{image_path}'")
-        sys.exit(1)
-    
-    print("=" * 70)
-    print("🎨 INTELLIGENT SCISSORS SEGMENTATION + TRADITIONAL INPAINTING")
-    print("=" * 70)
-    print(f"📁 Đã tải ảnh: {image_path}")
-    
+
     # =================================================================
-    # BƯỚC 1: SEGMENTATION (Tạo Mask) - SỬ DỤNG INTELLIGENT SCISSORS
+    # BƯỚC 1: SEGMENTATION (Tạo Mask) - ĐÃ SỬA ĐỔI
     # =================================================================
-    print("\n" + "=" * 70)
-    print("📍 BƯỚC 1: SEGMENTATION - Tạo Mask bằng Intelligent Scissors")
-    print("=" * 70)
+    
+    # --- THAY ĐỔI: Dùng Intelligent Scissors thay cho ColorBasedSegmentation ---
+    print("=" * 60)
+    print("BƯỚC 1: SEGMENTATION - Vẽ Mask bằng Intelligent Scissors")
+    print("=" * 60)
+    print("Hướng dẫn:")
+    print("  - Chuột Trái: Thêm điểm neo")
+    print("  - Chuột Phải / ENTER: Kết thúc vòng vẽ")
+    print("  - BACKSPACE: Undo")
+    print("  - ESC: Hoàn tất và chuyển sang bước Inpainting")
+    print("=" * 60)
     
     # Khởi tạo Interactive Segmentation Tool
     seg_app = IntelligentScissorsApp(image_path)
     
-    # [THAY ĐỔI TỪ CODE CŨ]
-    # Trước đây: seg_model = ColorBasedSegmentation(color_range='yellow')
-    # Bây giờ:   Dùng IntelligentScissorsApp để người dùng tự vẽ mask
+    # [TRƯỚC ĐÂY]:
+    # seg_model = ColorBasedSegmentation(color_range='yellow')
+    # mask = seg_model.get_mask(original_image)
     
-    print("\n📋 HƯỚNG DẪN VẼ MASK:")
-    print("  🖱️  Chuột Trái  : Thêm điểm neo")
-    print("  🖱️  Chuột Phải  : Kết thúc vòng vẽ (lưu vào mask)")
-    print("  ⌨️  ENTER       : Kết thúc vòng vẽ")
-    print("  ⌨️  BACKSPACE   : Undo bước trước")
-    print("  ⌨️  ESC         : HOÀN TẤT SEGMENTATION và chuyển sang Inpainting")
-    print("=" * 70 + "\n")
-    
-    # Chạy vòng lặp Interactive Segmentation
+    # [BÂY GIỜ]: Cho phép người dùng vẽ mask tương tác
     seg_app.update_display()
     
+    print("\nĐang chạy Segmentation... Vẽ mask và nhấn ESC khi xong.")
+    
+    # Vòng lặp vẽ mask
     while True:
         key = cv2.waitKey(20) & 0xFF
         
         if key == 27:  # ESC - Hoàn tất Segmentation
-            print("\n✅ Đã hoàn tất Segmentation!")
+            print("✓ Đã hoàn tất vẽ mask!")
             break
         elif key == 13:  # ENTER - Kết thúc vòng vẽ
             if seg_app.is_started:
@@ -77,189 +83,106 @@ def main():
     
     # Kiểm tra mask có rỗng không
     if cv2.countNonZero(mask) == 0:
-        print("⚠️  Cảnh báo: Mask rỗng! Không có vùng nào được chọn.")
-        print("💡 Bạn có thể:")
-        print("   - Chạy lại và vẽ mask")
-        print("   - Hoặc thoát nếu không cần xử lý")
-        cv2.destroyAllWindows()
-        
-        response = input("\nBạn có muốn thoát không? (y/n): ")
-        if response.lower() == 'y':
-            sys.exit(0)
-        else:
-            # Chạy lại từ đầu
-            cv2.destroyAllWindows()
-            return main()
+        print("⚠ Cảnh báo: Mask rỗng! Không có vùng nào được chọn.")
+        print("Đang tạo mask mẫu để demo...")
+        # Tạo mask mẫu (hình tròn giữa ảnh)
+        h, w = original_image.shape[:2]
+        mask = np.zeros((h, w), dtype=np.uint8)
+        cv2.circle(mask, (w//2, h//2), min(w, h)//4, 255, -1)
     
-    # Lưu mask để debug/kiểm tra
-    mask_path = os.path.join(output_dir, "01_segmentation_mask.png")
-    cv2.imwrite(mask_path, mask)
-    print(f"💾 Đã lưu Mask: {mask_path}")
-    
-    # Hiển thị Mask để kiểm tra
-    cv2.imshow("Debug: Generated Mask", mask)
-    print("\n👁️  Đang hiển thị mask... Nhấn phím bất kỳ để tiếp tục.")
-    cv2.waitKey(0)
+    # Đóng cửa sổ Intelligent Scissors
     cv2.destroyAllWindows()
     
-    # =================================================================
-    # BƯỚC 2: INPAINTING (Xóa vùng đã chọn)
-    # =================================================================
-    print("\n" + "=" * 70)
-    print("🖌️  BƯỚC 2: INPAINTING - Xóa vùng đã chọn")
-    print("=" * 70)
+    # --- LƯU MASK (OUTPUT 1) ---
+    mask_output_path = os.path.join(output_dir, "01_segmentation_mask.png")
+    cv2.imwrite(mask_output_path, mask)
+    print(f"💾 Đã lưu Mask: {mask_output_path}")
     
-    # Khởi tạo Inpainting Strategy
-    # Có thể chọn method='ns' (Navier-Stokes) hoặc 'telea'
-    inpainting_model = TraditionalInpainting(method='ns', radius=3)
+    # Hiển thị Mask để kiểm tra (Debug)
+    cv2.imshow("Debug: Generated Mask", mask)
+    print("→ Nhấn phím bất kỳ để tiếp tục sang bước Inpainting...")
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+    # =================================================================
+    # BƯỚC 2: INPAINTING (Phần của bạn)
+    # =================================================================
     
-    print("🔄 Đang thực hiện Inpainting...")
+    print("\n" + "=" * 60)
+    print("BƯỚC 2: INPAINTING")
+    print("=" * 60)
+    
+    # --- CẤU HÌNH LỰA CHỌN THUẬT TOÁN ---
+    # use_ai = False  -> Chạy Success Case 1 (Cổ điển - OpenCV)
+    # use_ai = True   -> Chạy Success Case 2 (Deep Learning - LaMa)
+    use_ai = True 
+
+    if use_ai:
+        print(">>> Đang khởi tạo AI Model (Case 2: LaMa)...")
+        # Đảm bảo bạn đã tải file big-lama.pt vào thư mục weights/
+        try:
+            inpainter = DeepInpaintingStrategy(model_path="weights/big-lama.pt")
+        except Exception as e:
+            print(f"Lỗi khởi tạo AI: {e}")
+            print("Đang chuyển về thuật toán Cổ điển...")
+            inpainter = TraditionalInpainting(method='ns', radius=3)
+    else:
+        print(">>> Đang sử dụng thuật toán Cổ điển (Case 1: Navier-Stokes)...")
+        inpainter = TraditionalInpainting(method='ns', radius=3)
+    
+    print("Đang chạy Inpainting...")
     try:
-        # Áp dụng inpainting
-        inpainted_image = inpainting_model.process(original_image, mask)
-        print("✅ Inpainting hoàn tất!")
+        result_image = inpainter.process(original_image, mask)
+        print("✓ Inpainting hoàn tất!")
+        
+        # --- LƯU ẢNH SAU INPAINTING (OUTPUT 2) ---
+        result_output_path = os.path.join(output_dir, "02_inpainted_result.png")
+        cv2.imwrite(result_output_path, result_image)
+        print(f"💾 Đã lưu ảnh kết quả: {result_output_path}")
         
     except Exception as e:
-        print(f"❌ Lỗi khi Inpainting: {e}")
-        sys.exit(1)
-    
+        print(f"Lỗi quá trình xử lý: {e}")
+        return
+
     # =================================================================
-    # BƯỚC 3: HIỂN THỊ & LƯU KẾT QUẢ
+    # BƯỚC 3: HIỂN THỊ KẾT QUẢ
     # =================================================================
-    print("\n" + "=" * 70)
-    print("📊 BƯỚC 3: HIỂN THỊ KẾT QUẢ")
-    print("=" * 70)
+    print("\n" + "=" * 60)
+    print("BƯỚC 3: HIỂN THỊ KẾT QUẢ")
+    print("=" * 60)
     
-    # Tạo ảnh so sánh Before/After
-    comparison = np.hstack([original_image, inpainted_image])
+    # Nối ảnh lại để so sánh: Gốc | Mask | Kết quả
+    mask_bgr = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR) # Đổi sang 3 kênh để nối
     
-    # Lưu các kết quả
-    result_path = os.path.join(output_dir, "02_inpainted_result.png")
-    comparison_path = os.path.join(output_dir, "03_comparison.png")
+    # Resize để đảm bảo ghép được (phòng trường hợp size lệch 1-2 pixel)
+    h, w = original_image.shape[:2]
+    mask_bgr = cv2.resize(mask_bgr, (w, h))
+    result_image = cv2.resize(result_image, (w, h))
     
-    cv2.imwrite(result_path, inpainted_image)
-    cv2.imwrite(comparison_path, comparison)
-    
-    print(f"💾 Đã lưu ảnh kết quả: {result_path}")
-    print(f"💾 Đã lưu ảnh so sánh: {comparison_path}")
-    
-    # Hiển thị kết quả
-    cv2.imshow("Result: Before (Left) vs After (Right)", comparison)
-    print("\n👁️  Đang hiển thị kết quả... Nhấn phím bất kỳ để thoát.")
+    combined_result = cv2.hconcat([original_image, mask_bgr, result_image])
+
+    # Thêm text để biết đang dùng model nào
+    label = "AI (LaMa)" if use_ai else "Classic (NS)"
+    cv2.putText(combined_result, label, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+
+    # --- LƯU ẢNH SO SÁNH (OUTPUT 3) ---
+    comparison_output_path = os.path.join(output_dir, "03_comparison.png")
+    cv2.imwrite(comparison_output_path, combined_result)
+    print(f"💾 Đã lưu ảnh so sánh: {comparison_output_path}")
+
+    cv2.imshow("Project 2 Demo: Original | Mask | Removed", combined_result)
+    print("Nhấn phím bất kỳ để thoát...")
     cv2.waitKey(0)
     cv2.destroyAllWindows()
     
-    # =================================================================
-    # HOÀN TẤT
-    # =================================================================
-    print("\n" + "=" * 70)
-    print("✨ HOÀN THÀNH!")
-    print("=" * 70)
-    print(f"📁 Các file đã được lưu trong thư mục: {output_dir}/")
-    print("   1. 01_segmentation_mask.png    - Mask đã vẽ")
-    print("   2. 02_inpainted_result.png     - Ảnh sau inpainting")
-    print("   3. 03_comparison.png           - Ảnh so sánh Before/After")
-    print("=" * 70)
-
-
-def main_interactive_mode():
-    """
-    Chế độ Interactive: Cho phép vẽ mask và xóa nhiều lần
-    (Giống như code ban đầu của bạn)
-    """
-    image_path = "inputs/test_image2.jpg"
-    
-    if not os.path.exists(image_path):
-        print(f"❌ Lỗi: Không tìm thấy file '{image_path}'")
-        sys.exit(1)
-    
-    output_dir = "outputs"
-    os.makedirs(output_dir, exist_ok=True)
-    
-    print("=" * 70)
-    print("🎨 INTERACTIVE MODE - Vẽ và Xóa tự do")
-    print("=" * 70)
-    
-    # Khởi tạo app
-    app = IntelligentScissorsApp(image_path)
-    inpainting_strategy = TraditionalInpainting(method='ns', radius=3)
-    
-    print("\n📋 HƯỚNG DẪN:")
-    print("  🖱️  Chuột Trái  : Thêm điểm neo")
-    print("  🖱️  Chuột Phải  : Kết thúc vòng vẽ")
-    print("  ⌨️  ENTER       : Kết thúc vòng vẽ")
-    print("  ⌨️  BACKSPACE   : Undo")
-    print("  ⌨️  X           : XÓA vùng đã chọn (Inpainting)")
-    print("  ⌨️  S           : Lưu Mask")
-    print("  ⌨️  I           : Lưu ảnh hiện tại")
-    print("  ⌨️  ESC         : Thoát")
-    print("=" * 70 + "\n")
-    
-    app.update_display()
-    
-    while True:
-        key = cv2.waitKey(20) & 0xFF
-        
-        if key == 27:  # ESC
-            break
-        elif key == 13:  # ENTER
-            if app.is_started:
-                app.finish_drawing()
-        elif key == 8:  # BACKSPACE
-            app.undo_last_step()
-        elif key == ord('x') or key == ord('X'):  # Xóa
-            if cv2.countNonZero(app.global_mask) == 0:
-                print("⚠️  Chưa có vùng nào được chọn!")
-                continue
-            
-            print("🔄 Đang Inpainting...")
-            app.img = inpainting_strategy.process(app.img, app.global_mask)
-            app.global_mask[:] = 0
-            app.tool.applyImage(app.img)
-            print("✅ Đã xóa!")
-            app.update_display()
-        elif key == ord('s') or key == ord('S'):  # Lưu mask
-            if cv2.countNonZero(app.global_mask) > 0:
-                cv2.imwrite(os.path.join(output_dir, "mask.png"), app.global_mask)
-                print("💾 Đã lưu mask!")
-        elif key == ord('i') or key == ord('I'):  # Lưu ảnh
-            cv2.imwrite(os.path.join(output_dir, "current_image.png"), app.img)
-            print("💾 Đã lưu ảnh!")
-    
-    # Lưu ảnh cuối
-    cv2.imwrite(os.path.join(output_dir, "final_result.png"), app.img)
-    cv2.destroyAllWindows()
-    print("✨ Hoàn thành!")
-
+    print("\n" + "=" * 60)
+    print("✓ HOÀN THÀNH!")
+    print("=" * 60)
+    print(f"📁 Tất cả file đã được lưu trong thư mục: {output_dir}/")
+    print(f"   1. {mask_output_path}")
+    print(f"   2. {result_output_path}")
+    print(f"   3. {comparison_output_path}")
+    print("=" * 60)
 
 if __name__ == "__main__":
-    import argparse
-    
-    parser = argparse.ArgumentParser(description="Intelligent Scissors + Inpainting")
-    parser.add_argument(
-        '--mode',
-        type=str,
-        choices=['pipeline', 'interactive'],
-        default='pipeline',
-        help='Chế độ chạy: pipeline (1 lần) hoặc interactive (nhiều lần)'
-    )
-    
-    args = parser.parse_args()
-    
-    try:
-        if args.mode == 'pipeline':
-            # Chế độ Pipeline: Segmentation -> Inpainting -> Done
-            main()
-        else:
-            # Chế độ Interactive: Vẽ và xóa tự do
-            main_interactive_mode()
-            
-    except KeyboardInterrupt:
-        print("\n\n⚠️  Đã dừng bởi người dùng (Ctrl+C)")
-        cv2.destroyAllWindows()
-    except Exception as e:
-        print(f"\n❌ Lỗi: {e}")
-        import traceback
-        traceback.print_exc()
-        cv2.destroyAllWindows()
-        sys.exit(1)
+    main()
