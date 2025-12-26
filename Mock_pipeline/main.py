@@ -42,67 +42,21 @@ def main():
     # BƯỚC 1: SEGMENTATION (Tạo Mask) - ĐÃ SỬA ĐỔI
     # =================================================================
     
-    # --- THAY ĐỔI: Dùng Intelligent Scissors thay cho ColorBasedSegmentation ---
-    print("=" * 60)
-    print("BƯỚC 1: SEGMENTATION - Vẽ Mask bằng Intelligent Scissors")
-    print("=" * 60)
-    print("Hướng dẫn:")
-    print("  - Chuột Trái: Thêm điểm neo")
-    print("  - Chuột Phải / ENTER: Kết thúc vòng vẽ")
-    print("  - BACKSPACE: Undo")
-    print("  - ESC: Hoàn tất và chuyển sang bước Inpainting")
-    print("=" * 60)
-    
+    # --- THAY ĐỔI: Dùng Intelligent Scissors thay cho ColorBasedSegmentation --- 
     # Khởi tạo Interactive Segmentation Tool
     seg_app = IntelligentScissorsApp(image_path)
-    
-    # [TRƯỚC ĐÂY]:
-    # seg_model = ColorBasedSegmentation(color_range='yellow')
-    # mask = seg_model.get_mask(original_image)
-    
-    # [BÂY GIỜ]: Cho phép người dùng vẽ mask tương tác
     seg_app.update_display()
-    
     print("\nĐang chạy Segmentation... Vẽ mask và nhấn ESC khi xong.")
     
     # Vòng lặp vẽ mask
-    while True:
-        key = cv2.waitKey(20) & 0xFF
-        
-        if key == 27:  # ESC - Hoàn tất Segmentation
-            print("✓ Đã hoàn tất vẽ mask!")
-            break
-        elif key == 13:  # ENTER - Kết thúc vòng vẽ
-            if seg_app.is_started:
-                seg_app.finish_drawing()
-        elif key == 8:  # BACKSPACE - Undo
-            seg_app.undo_last_step()
+    seg_app.run()
     
     # Lấy mask đã vẽ
     mask = seg_app.global_mask.copy()
-    
-    # Kiểm tra mask có rỗng không
-    if cv2.countNonZero(mask) == 0:
-        print("⚠ Cảnh báo: Mask rỗng! Không có vùng nào được chọn.")
-        print("Đang tạo mask mẫu để demo...")
-        # Tạo mask mẫu (hình tròn giữa ảnh)
-        h, w = original_image.shape[:2]
-        mask = np.zeros((h, w), dtype=np.uint8)
-        cv2.circle(mask, (w//2, h//2), min(w, h)//4, 255, -1)
-    
+
     # Đóng cửa sổ Intelligent Scissors
     cv2.destroyAllWindows()
     
-    # --- LƯU MASK (OUTPUT 1) ---
-    mask_output_path = os.path.join(output_dir, "01_segmentation_mask.png")
-    cv2.imwrite(mask_output_path, mask)
-    print(f"💾 Đã lưu Mask: {mask_output_path}")
-    
-    # Hiển thị Mask để kiểm tra (Debug)
-    cv2.imshow("Debug: Generated Mask", mask)
-    print("→ Nhấn phím bất kỳ để tiếp tục sang bước Inpainting...")
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
 
     # =================================================================
     # BƯỚC 2: INPAINTING (Phần của bạn)
