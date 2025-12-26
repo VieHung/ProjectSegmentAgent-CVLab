@@ -101,6 +101,15 @@ class IntelligentScissorsApp:
                 
                 # Tô vùng này màu trắng (255) lên mask toàn cục
                 cv2.fillPoly(self.global_mask, [full_contour], 255)
+                
+                #=========================================================================
+                # Thêm phần mở rộng mask (để đảm bảo ko còn pixel màu đỏ của quả bóng nữa)
+                #=========================================================================
+                kernel = np.ones((5,5), np.uint8)
+                self.global_mask = cv2.dilate(self.global_mask, kernel, iterations=2)
+                print("-> [DEBUG] Mask đã được làm to ra (Dilated) giống Mock Model.")
+                # ========================================================
+                
                 print("-> Đã lưu vùng chọn vào Mask. (Nhấn 'X' để xóa vùng này)")
 
         # Reset trạng thái vẽ để vẽ hình mới (nhưng giữ nguyên global_mask)

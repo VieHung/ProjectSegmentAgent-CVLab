@@ -79,7 +79,7 @@ def main():
     # --- CẤU HÌNH LỰA CHỌN THUẬT TOÁN ---
     # use_ai = False  -> Chạy Success Case 1 (Cổ điển - OpenCV)
     # use_ai = True   -> Chạy Success Case 2 (Deep Learning - LaMa)
-    use_ai = False
+    use_ai = True
 
     if use_ai:
         print(">>> Đang khởi tạo AI Model (Case 2: LaMa)...")
