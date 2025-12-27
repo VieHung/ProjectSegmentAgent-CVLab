@@ -34,7 +34,7 @@ def main():
     # 0. CẤU HÌNH INPUT/OUTPUT (DÙNG OS.PATH.JOIN)
     # =================================================================
     # Định nghĩa các đường dẫn tương đối dựa trên BASE_DIR
-    img_path = os.path.join(BASE_DIR, "inputs", "test_image1.jpg")
+    img_path = os.path.join(BASE_DIR, "inputs", "test_image4.jpg")
     output_dir = os.path.join(BASE_DIR, "outputs")
     
     # Weights Config
