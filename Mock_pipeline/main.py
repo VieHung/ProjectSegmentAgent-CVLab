@@ -20,7 +20,7 @@ from modules.segmentation.intelligent_scissors import IntelligentScissorsApp
 
 def main():
     # 1. Cấu hình đường dẫn ảnh
-    image_path = "inputs/test_image4.jpg" # Hãy đảm bảo bạn có ảnh này
+    image_path = "inputs/test_image1.jpg" # Hãy đảm bảo bạn có ảnh này
     
     # Tạo thư mục outputs nếu chưa có
     output_dir = "outputs"
