@@ -22,7 +22,7 @@ if gd_path not in sys.path:
 # IMPORT MODULES
 # =================================================================
 try:
-    from modules.grounding.GroundingDINO import GroundingDINOStrategy
+    from modules.grounding.groundingDINO import GroundingDINOStrategy
     from modules.inpainting.deep_strategies import DeepInpaintingStrategy
 except ImportError as e:
     print(f"❌ Lỗi Import: {e}")
@@ -38,7 +38,7 @@ def main():
     output_dir = os.path.join(BASE_DIR, "outputs")
     
     # Weights Config
-    dino_config = os.path.join(BASE_DIR, "weights", "GroundingDINO_SwinB_cfg.py")
+    dino_config = os.path.join(BASE_DIR, "weights", "" "GroundingDINO_SwinB_cfg.py")
     dino_weights = os.path.join(BASE_DIR, "weights", "groundingdino_swinb_cogcoor.pth")
     lama_model_path = os.path.join(BASE_DIR, "weights", "big-lama.pt")
 
