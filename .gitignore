@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+Mock_pipeline/weights/
+Mock_pipeline/weights/

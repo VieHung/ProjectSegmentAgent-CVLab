@@ -2,3 +2,11 @@ opencv-python
 numpy
 torch
 torchvision
+transformers
+addict
+yapf
+timm
+supervision>=0.22.0
+pycocotools
+matplotlib
+hydra-core
