@@ -2,8 +2,8 @@ import torch
 import numpy as np
 import os
 import cv2
-from sam2.sam2.build_sam import build_sam2
-from sam2.sam2.sam2_image_predictor import SAM2ImagePredictor
+from sam2.build_sam import build_sam2
+from sam2.sam2_image_predictor import SAM2ImagePredictor
 
 class Sam2MaskStrategy:
     """
