@@ -9,3 +9,4 @@ timm
 supervision>=0.22.0
 pycocotools
 matplotlib
+hydra-core
