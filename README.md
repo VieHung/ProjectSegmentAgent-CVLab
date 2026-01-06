@@ -6,3 +6,11 @@ Success case 1:
 Success case 2:
     1: Create a folder name "weights"
     2: Download this file to folder "weight": https://github.com/Sanster/models/releases/download/add_big_lama/big-lama.pt 
+
+How to use intelligent_scissors:
+
+/
+bấm chuột trái để tạo điểm neo mới, bấm chuột phải để kết thúc. 
+
+/
+bấm ESC để chuyển từ segment -> inpainting -> save outputs
