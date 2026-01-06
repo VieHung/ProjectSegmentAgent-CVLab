@@ -11,3 +11,4 @@ pycocotools
 matplotlib
 hydra-core
 gdown
+git+https://github.com/facebookresearch/sam2.git
