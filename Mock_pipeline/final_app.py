@@ -4,13 +4,18 @@ import numpy as np
 import os
 import sys
 import torch
-import subprocess # <--- Quan trọng cho chế độ Manual
+import subprocess
+import gdown  # <--- Thêm thư viện này
 from PIL import Image
 
 # =================================================================
 # 1. CẤU HÌNH HỆ THỐNG & ĐƯỜNG DẪN
 # =================================================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+WEIGHTS_DIR = os.path.join(BASE_DIR, "weights") # Thư mục chứa weights
+
+# Tạo thư mục weights nếu chưa có
+os.makedirs(WEIGHTS_DIR, exist_ok=True)
 
 # Setup path cho modules
 segmentation_folder = os.path.join(BASE_DIR, "modules", "segmentation")
@@ -57,26 +62,74 @@ def cleanup_temp_files():
             try: os.remove(f)
             except: pass
 
+# --- HÀM TẢI WEIGHTS TỰ ĐỘNG ---
+@st.cache_resource
+def download_required_weights():
+    """Tải các file weights từ Google Drive nếu chưa tồn tại"""
+    
+    # Dictionary: {Tên file: Google Drive ID}
+    files_to_download = {
+        "big-lama.pt": "1-s2qeHMEO5acm26_u3SpZKr3UiEmy4KU",
+        "GroundingDINO_SwinB_cfg.py": "1dFTFUjLYQOs2cM33Q7-CMguxXWY0VYq_",
+        "groundingdino_swinb_cogcoor.pth": "1jCq35XXzZuFB_vZAe3muva54-6qs9E_D",
+        "sam2_hiera_base_plus.pt": "1PFlgFWEiNXHYwoN6WDebfOhee3CprwuX",
+        "sam2.1_hiera_base_plus.pt": "11PV-z39Cbl8xAtgjAItqNLUpryDj51Ue"
+    }
+
+    st.toast("Đang kiểm tra file weights...", icon="📦")
+    
+    for filename, gdrive_id in files_to_download.items():
+        file_path = os.path.join(WEIGHTS_DIR, filename)
+        
+        if not os.path.exists(file_path):
+            url = f'https://drive.google.com/uc?id={gdrive_id}'
+            try:
+                # Hiển thị thông báo nhỏ
+                print(f"Downloading {filename}...")
+                gdown.download(url, file_path, quiet=False)
+            except Exception as e:
+                st.error(f"Không tải được {filename}: {e}")
+    
+    return True
+
+# Gọi hàm tải ngay khi khởi động app
+download_required_weights()
+
 @st.cache_resource
 def load_dino_model():
-    # Chỉ load khi cần dùng chế độ Auto
-    config = os.path.join(BASE_DIR, "weights", "GroundingDINO_SwinB_cfg.py")
-    weights = os.path.join(BASE_DIR, "weights", "groundingdino_swinb_cogcoor.pth")
+    # Load Config và Weights từ folder weights (đã tải ở trên)
+    config = os.path.join(WEIGHTS_DIR, "GroundingDINO_SwinB_cfg.py")
+    weights = os.path.join(WEIGHTS_DIR, "groundingdino_swinb_cogcoor.pth")
+    
+    if not os.path.exists(config) or not os.path.exists(weights):
+        st.error("Thiếu file config hoặc weights cho DINO!")
+        return None
+        
     return GroundingDINOStrategy(config_path=config, weights_path=weights, device=get_device())
 
 @st.cache_resource
 def load_sam2_model():
-    checkpoint = os.path.join(BASE_DIR, "weights", "sam2_hiera_base_plus.pt")
+    # Lưu ý: Code đang dùng bản 'sam2_hiera_base_plus.pt'
+    checkpoint = os.path.join(WEIGHTS_DIR, "sam2_hiera_base_plus.pt")
+    
+    # Config YAML của SAM2 thường nằm trong code repo, không phải tải về
+    # Nếu repo của bạn thiếu file yaml này thì báo lỗi, nhưng mình giữ nguyên logic cũ của bạn
     config = os.path.join(BASE_DIR, "modules", "segmentation", "configs", "sam2", "sam2_hiera_b+.yaml")
+    
+    if not os.path.exists(checkpoint):
+        st.error(f"Thiếu file weights SAM2: {checkpoint}")
+        return None
+
     return Sam2MaskStrategy(checkpoint_path=checkpoint, config_path=config, device=get_device())
 
 @st.cache_resource
 def load_lama_model():
-    model_path = os.path.join(BASE_DIR, "weights", "big-lama.pt")
-    # Kiểm tra model tồn tại
+    model_path = os.path.join(WEIGHTS_DIR, "big-lama.pt")
+    
     if not os.path.exists(model_path):
         st.error(f"Không tìm thấy model LaMa tại: {model_path}")
         return None
+        
     return DeepInpaintingStrategy(model_path=model_path, device=get_device())
 
 # =================================================================
@@ -151,27 +204,30 @@ if uploaded_file is not None:
                     with st.spinner("Đang chạy DINO + SAM2..."):
                         dino = load_dino_model()
                         sam2 = load_sam2_model()
-
-                        # Detect
-                        boxes, _ = dino.detect(image_bgr, text_prompt, box_threshold=box_threshold)
                         
-                        if len(boxes) == 0:
-                            st.warning(f"Không tìm thấy '{text_prompt}'.")
-                            st.session_state['processed_mask'] = None
-                        else:
-                            # Segment
-                            combined_mask = np.zeros(image_bgr.shape[:2], dtype=np.uint8)
-                            for box in boxes:
-                                m = sam2.process(image_bgr, boxes=np.array([box]))
-                                combined_mask = cv2.bitwise_or(combined_mask, m)
+                        if dino and sam2:
+                            # Detect
+                            boxes, _ = dino.detect(image_bgr, text_prompt, box_threshold=box_threshold)
                             
-                            st.session_state['processed_mask'] = combined_mask
-                            st.success(f"Đã tìm thấy {len(boxes)} đối tượng.")
+                            if len(boxes) == 0:
+                                st.warning(f"Không tìm thấy '{text_prompt}'.")
+                                st.session_state['processed_mask'] = None
+                            else:
+                                # Segment
+                                combined_mask = np.zeros(image_bgr.shape[:2], dtype=np.uint8)
+                                for box in boxes:
+                                    m = sam2.process(image_bgr, boxes=np.array([box]))
+                                    combined_mask = cv2.bitwise_or(combined_mask, m)
+                                
+                                st.session_state['processed_mask'] = combined_mask
+                                st.success(f"Đã tìm thấy {len(boxes)} đối tượng.")
 
                 except Exception as e:
                     st.error(f"Lỗi AI: {e}")
 
         else: # Chế độ Thủ công
+            # Lưu ý: Chế độ thủ công dùng 'gui_mask.py' (cần GUI server, khó chạy trên Streamlit Cloud)
+            # Trên Cloud, subprocess gọi GUI sẽ thất bại nếu không có X11 forwarding
             if st.button("✂️ Mở Cửa Sổ Vẽ Mask", type="primary"):
                 # Lưu ảnh tạm để script con đọc
                 cv2.imwrite(TEMP_INPUT_PATH, image_bgr)
@@ -180,10 +236,9 @@ if uploaded_file is not None:
                 if os.path.exists(TEMP_MASK_PATH): os.remove(TEMP_MASK_PATH)
                 st.session_state['processed_mask'] = None
 
-                with st.spinner("Đang mở cửa sổ vẽ... Vui lòng vẽ xong và nhấn 's' để lưu, 'q' để thoát."):
+                with st.spinner("Đang mở cửa sổ vẽ..."):
                     try:
                         # Gọi script gui_mask.py bằng subprocess
-                        # Đảm bảo bạn có file gui_mask.py cùng thư mục
                         cmd = [sys.executable, "gui_mask.py", TEMP_INPUT_PATH, TEMP_MASK_PATH]
                         subprocess.run(cmd, check=True)
                         
@@ -191,59 +246,50 @@ if uploaded_file is not None:
                         if os.path.exists(TEMP_MASK_PATH):
                             loaded_mask = cv2.imread(TEMP_MASK_PATH, cv2.IMREAD_GRAYSCALE)
                             if loaded_mask is not None:
-                                # Resize mask về đúng size ảnh gốc (phòng hờ)
+                                # Resize mask về đúng size ảnh gốc
                                 if loaded_mask.shape[:2] != image_bgr.shape[:2]:
                                     loaded_mask = cv2.resize(loaded_mask, (image_bgr.shape[1], image_bgr.shape[0]))
                                 
                                 st.session_state['processed_mask'] = loaded_mask
                                 st.success("✅ Đã lấy Mask từ cửa sổ vẽ!")
-                                st.rerun() # Rerun để hiển thị mask bên cột 2
+                                st.rerun() 
                             else:
                                 st.error("File mask bị lỗi.")
                         else:
-                            st.warning("⚠️ Bạn đã đóng cửa sổ mà không lưu mask.")
+                            st.warning("⚠️ Bạn đã đóng cửa sổ mà không lưu mask hoặc script lỗi.")
                     except subprocess.CalledProcessError as e:
-                        st.error(f"Lỗi khi chạy gui_mask.py: {e}")
-                        st.info("Đảm bảo file 'gui_mask.py' nằm cùng thư mục với file này.")
+                        st.error(f"Lỗi chạy gui_mask.py (Chế độ này chỉ chạy tốt ở Local): {e}")
 
     # === CỘT 2: KIỂM TRA MASK & INPAINT ===
-    # === CỘT 2: KIỂM TRA MASK & EDIT & INPAINT ===
     with col2:
         st.subheader("🎭 Mask (Segmentation)")
         
         if st.session_state['processed_mask'] is not None:
             # 1. Hiển thị mask hiện tại
-            # (Hiển thị mask thô chưa dilate để user biết chính xác vùng chọn)
             st.image(st.session_state['processed_mask'], caption="Mask hiện tại", use_column_width=True, clamp=True)
 
-            # 2. Nút Chỉnh sửa thủ công (Refine)
-            # Logic: Lưu mask hiện tại ra file -> Gọi GUI -> Load lại mask
+            # 2. Nút Chỉnh sửa thủ công
             st.write("---")
             if st.button("✏️ Chỉnh sửa / Bỏ chọn vùng thừa"):
-                # A. Lưu ảnh gốc và mask hiện tại xuống đĩa
                 cv2.imwrite(TEMP_INPUT_PATH, image_bgr)
                 cv2.imwrite(TEMP_MASK_PATH, st.session_state['processed_mask'])
                 
-                # B. Mở cửa sổ vẽ
                 st.info("Đang mở cửa sổ... Chuột Trái: Vẽ | Chuột Phải: Xóa. Nhấn 'S' để Lưu.")
                 try:
                     cmd = [sys.executable, "gui_mask.py", TEMP_INPUT_PATH, TEMP_MASK_PATH]
                     subprocess.run(cmd, check=True)
                     
-                    # C. Load lại mask sau khi đã chỉnh sửa
                     if os.path.exists(TEMP_MASK_PATH):
                         refined_mask = cv2.imread(TEMP_MASK_PATH, cv2.IMREAD_GRAYSCALE)
                         if refined_mask is not None:
-                            # Resize cho chắc chắn
                             if refined_mask.shape[:2] != image_bgr.shape[:2]:
                                 refined_mask = cv2.resize(refined_mask, (image_bgr.shape[1], image_bgr.shape[0]))
                             
-                            # Cập nhật Session State
                             st.session_state['processed_mask'] = refined_mask
                             st.success("✅ Đã cập nhật Mask!")
-                            st.rerun() # Reload lại trang để hiện mask mới
+                            st.rerun()
                 except Exception as e:
-                    st.error(f"Lỗi khi mở cửa sổ chỉnh sửa: {e}")
+                    st.error(f"Lỗi chỉnh sửa (Chỉ chạy Local): {e}")
 
             st.write("---")
 
@@ -253,14 +299,11 @@ if uploaded_file is not None:
                     with st.spinner("Đang chạy Inpainting..."):
                         lama = load_lama_model()
                         if lama:
-                            # Chuẩn bị mask cuối cùng (Apply Dilate ở bước này để xóa sạch viền)
                             final_mask_input = dilate_mask(st.session_state['processed_mask'], kernel_size=dilate_kernel)
                             
-                            # Process
                             result = lama.process(image_bgr, final_mask_input)
                             st.session_state['final_result'] = result
                             
-                            # Save file
                             out_name = f"result_{mode[:3]}_{uploaded_file.name}"
                             cv2.imwrite(os.path.join(OUTPUT_DIR, out_name), result)
                             st.success("Xong!")
@@ -276,7 +319,6 @@ if uploaded_file is not None:
             res_rgb = cv2.cvtColor(st.session_state['final_result'], cv2.COLOR_BGR2RGB)
             st.image(res_rgb, use_column_width=True)
 
-            # Download
             is_success, buffer = cv2.imencode(".jpg", st.session_state['final_result'])
             if is_success:
                 st.download_button(
