@@ -62,7 +62,7 @@ def cleanup_temp_files():
             try: os.remove(f)
             except: pass
 
-# --- HÀM TẢI WEIGHTS TỰ ĐỘNG ---
+# --- HÀM TẢI WEIGHTS TỰ ĐỘNG (ĐÃ SỬA LỖI CACHE) ---
 @st.cache_resource
 def download_required_weights():
     """Tải các file weights từ Google Drive nếu chưa tồn tại"""
@@ -76,7 +76,9 @@ def download_required_weights():
         "sam2.1_hiera_base_plus.pt": "11PV-z39Cbl8xAtgjAItqNLUpryDj51Ue"
     }
 
-    st.toast("Đang kiểm tra file weights...", icon="📦")
+    # ĐÃ XÓA st.toast ĐỂ TRÁNH LỖI CACHE REPLAY
+    # Chúng ta dùng print để xem tiến trình trong Logs của Streamlit Cloud
+    print("--- Bắt đầu kiểm tra và tải Weights ---")
     
     for filename, gdrive_id in files_to_download.items():
         file_path = os.path.join(WEIGHTS_DIR, filename)
@@ -84,12 +86,14 @@ def download_required_weights():
         if not os.path.exists(file_path):
             url = f'https://drive.google.com/uc?id={gdrive_id}'
             try:
-                # Hiển thị thông báo nhỏ
-                print(f"Downloading {filename}...")
+                print(f"Downloading {filename}...") # Dùng print thay cho st.write/st.toast
                 gdown.download(url, file_path, quiet=False)
             except Exception as e:
-                st.error(f"Không tải được {filename}: {e}")
+                # Với cache_resource, nên hạn chế st.error bên trong, 
+                # nhưng in ra console để debug là an toàn nhất
+                print(f"❌ Không tải được {filename}: {e}")
     
+    print("--- Hoàn tất kiểm tra Weights ---")
     return True
 
 # Gọi hàm tải ngay khi khởi động app
