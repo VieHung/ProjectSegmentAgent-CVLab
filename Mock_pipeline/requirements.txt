@@ -10,5 +10,5 @@ pycocotools
 matplotlib
 hydra-core
 gdown
-git+https://github.com/facebookresearch/sam2.git
+git+https://github.com/facebookresearch/sam2.git --no-deps
 opencv-python-headless
