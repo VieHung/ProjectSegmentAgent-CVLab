@@ -1,135 +1,78 @@
-import cv2
+# File: gui_mask.py
 import sys
-import numpy as np
 import os
+import cv2
+import numpy as np
 
-# Biến toàn cục
-drawing = False
-erasing = False
-mask = None
-brush_size = 15
+# =================================================================
+# CẤU HÌNH ĐƯỜNG DẪN IMPORT
+# =================================================================
+# Lấy đường dẫn thư mục gốc (nơi chứa file này)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Biến lưu vị trí chuột cũ để vẽ nét liền mạch hơn
-last_x, last_y = -1, -1
+# Thêm đường dẫn root vào sys.path để Python tìm thấy folder 'modules'
+if BASE_DIR not in sys.path:
+    sys.path.append(BASE_DIR)
 
-def draw_mask(event, x, y, flags, param):
-    global drawing, erasing, mask, brush_size, last_x, last_y
+# Import module Intelligent Scissors
+try:
+    # Giả định đường dẫn file: modules/segmentation/intelligent_scissors.py
+    # Và tên class là IntelligentScissorsApp
+    from modules.segmentation.intelligent_scissors import IntelligentScissorsApp
+except ImportError as e:
+    print(f"❌ [GUI Error] Không thể import IntelligentScissorsApp: {e}")
+    print(f"👉 Vui lòng kiểm tra file: {os.path.join(BASE_DIR, 'modules', 'segmentation', 'intelligent_scissors.py')}")
+    sys.exit(1)
 
-    # --- NHẤN CHUỘT ---
-    if event == cv2.EVENT_LBUTTONDOWN:
-        drawing = True
-        last_x, last_y = x, y
-        cv2.circle(mask, (x, y), brush_size, 255, -1)
+def run_gui(input_path, output_path):
+    print(f"\n🚀 [GUI] Khởi động Intelligent Scissors...")
+    print(f"   - Input: {input_path}")
+    print(f"   - Output: {output_path}")
+    
+    # 1. Kiểm tra file input
+    if not os.path.exists(input_path):
+        print(f"❌ [GUI] Lỗi: Không tìm thấy ảnh tại {input_path}")
+        return
+
+    # 2. Khởi tạo App
+    try:
+        # Khởi tạo ứng dụng với đường dẫn ảnh
+        app = IntelligentScissorsApp(input_path)
         
-    elif event == cv2.EVENT_RBUTTONDOWN:
-        erasing = True
-        last_x, last_y = x, y
-        cv2.circle(mask, (x, y), brush_size, 0, -1)
+        print("\n--- HƯỚNG DẪN SỬ DỤNG KÉO THÔNG MINH ---")
+        print("👉 Click chuột trái: Thêm điểm neo (Anchor point).")
+        print("👉 Di chuột: Đường bao sẽ tự động bám theo cạnh vật thể.")
+        print("👉 Enter: Kết thúc và đóng vùng chọn (tạo Mask).")
+        print("👉 ESC: Hủy bỏ.")
+        print("----------------------------------------\n")
 
-    # --- DI CHUYỂN CHUỘT ---
-    elif event == cv2.EVENT_MOUSEMOVE:
-        if drawing:
-            # Vẽ đường thẳng từ điểm cũ đến điểm mới để nét không bị đứt đoạn khi di chuột nhanh
-            cv2.line(mask, (last_x, last_y), (x, y), 255, brush_size * 2)
-            cv2.circle(mask, (x, y), brush_size, 255, -1)
-            last_x, last_y = x, y
-        elif erasing:
-            cv2.line(mask, (last_x, last_y), (x, y), 0, brush_size * 2)
-            cv2.circle(mask, (x, y), brush_size, 0, -1)
-            last_x, last_y = x, y
-
-    # --- NHẢ CHUỘT ---
-    elif event == cv2.EVENT_LBUTTONUP:
-        drawing = False
-    elif event == cv2.EVENT_RBUTTONUP:
-        erasing = False
-
-def main():
-    if len(sys.argv) < 3:
-        print("Usage: python gui_mask.py <input_image> <output_mask>")
-        return
-
-    input_path = sys.argv[1]
-    output_path = sys.argv[2]
-
-    # 1. Đọc ảnh gốc
-    img = cv2.imread(input_path)
-    if img is None:
-        print("Error: Cannot read input image")
-        return
-
-    h, w = img.shape[:2]
-
-    # 2. Xử lý Mask (Load cũ hoặc tạo mới)
-    global mask
-    if os.path.exists(output_path):
-        print(f"Loading existing mask from {output_path}")
-        loaded_mask = cv2.imread(output_path, cv2.IMREAD_GRAYSCALE)
-        if loaded_mask is not None:
-             mask = cv2.resize(loaded_mask, (w, h))
+        # 3. Chạy App (Code sẽ dừng tại đây cho đến khi user đóng cửa sổ)
+        app.run()
+        
+        # 4. Lưu kết quả
+        # Giả định class IntelligentScissorsApp có thuộc tính 'mask' lưu kết quả cuối cùng
+        if hasattr(app, 'mask') and app.mask is not None:
+            # Đảm bảo mask là binary (0 và 255)
+            mask_to_save = app.mask
+            if len(mask_to_save.shape) > 2:
+                mask_to_save = cv2.cvtColor(mask_to_save, cv2.COLOR_BGR2GRAY)
+            
+            # Lưu file
+            cv2.imwrite(output_path, mask_to_save)
+            print(f"✅ [GUI] Đã lưu Mask thành công tại: {output_path}")
         else:
-             mask = np.zeros((h, w), dtype=np.uint8)
-    else:
-        mask = np.zeros((h, w), dtype=np.uint8)
+            print("⚠️ [GUI] Không có mask nào được tạo (Có thể bạn đã nhấn ESC hoặc chưa nhấn Enter).")
 
-    # --- CẤU HÌNH CỬA SỔ (QUAN TRỌNG) ---
-    window_name = 'Left: DRAW | Right: ERASE | S: SAVE | Q: QUIT'
-    
-    # Dùng WINDOW_NORMAL để cho phép resize thủ công
-    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL) 
-
-    # Tính toán kích thước hiển thị hợp lý (tối đa 1280x720 hoặc 80% màn hình)
-    # Giúp ảnh to không bị tràn, ảnh nhỏ không bị bé quá
-    screen_w, screen_h = 1280, 720 # Kích thước default an toàn
-    
-    scale_w = screen_w / w
-    scale_h = screen_h / h
-    scale = min(scale_w, scale_h)
-    
-    if scale < 1: # Chỉ thu nhỏ nếu ảnh lớn hơn màn hình
-        new_w, new_h = int(w * scale), int(h * scale)
-        cv2.resizeWindow(window_name, new_w, new_h)
-    else:
-        cv2.resizeWindow(window_name, w, h)
-
-    cv2.setMouseCallback(window_name, draw_mask)
-
-    print("--- GUIDE ---")
-    print("Press '[' to decrease brush size")
-    print("Press ']' to increase brush size")
-    print("Press 'S' to Save & Exit")
-    print("Press 'Q' to Quit without Saving")
-
-    while True:
-        # Tạo lớp phủ visual
-        display_img = img.copy()
-        
-        # Tô màu đỏ lên vùng mask (kênh Red = 255)
-        # Chỉ tô những chỗ mask màu trắng
-        display_img[mask == 255] = [0, 0, 255] 
-        
-        # Blend: 70% ảnh gốc + 30% lớp phủ đỏ
-        result = cv2.addWeighted(img, 0.7, display_img, 0.3, 0)
-
-        # Hiển thị
-        cv2.imshow(window_name, result)
-        
-        k = cv2.waitKey(1) & 0xFF
-        
-        if k == ord('s'): # Save
-            cv2.imwrite(output_path, mask)
-            print(f"Saved mask to {output_path}")
-            break
-        elif k == ord('q'): # Quit
-            break
-        elif k == ord('['): # Giảm brush
-            brush_size = max(1, brush_size - 5)
-            print(f"Brush size: {brush_size}")
-        elif k == ord(']'): # Tăng brush
-            brush_size = min(100, brush_size + 5)
-            print(f"Brush size: {brush_size}")
-
-    cv2.destroyAllWindows()
+    except Exception as e:
+        print(f"❌ [GUI] Lỗi Runtime: {e}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
-    main()
+    # Nhận tham số từ dòng lệnh: python gui_mask.py <input> <output>
+    if len(sys.argv) < 3:
+        print("Usage: python gui_mask.py <input_image_path> <output_mask_path>")
+    else:
+        in_path = sys.argv[1]
+        out_path = sys.argv[2]
+        run_gui(in_path, out_path)

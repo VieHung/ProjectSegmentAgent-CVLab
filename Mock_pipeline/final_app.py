@@ -171,40 +171,57 @@ if uploaded_file is not None:
                 except Exception as e:
                     st.error(f"Lỗi AI: {e}")
 
-        else: # Chế độ Thủ công
-            if st.button("✂️ Mở Cửa Sổ Vẽ Mask", type="primary"):
+        else: # Chế độ Thủ công (Manual)
+            st.info("💡 **Chế độ Intelligent Scissors (Kéo thông minh):**")
+            st.markdown("""
+            1. Cửa sổ mới sẽ hiện lên.
+            2. **Click chuột trái** để đặt các điểm bao quanh vật thể.
+            3. Đường line sẽ tự động "hít" vào cạnh của vật thể.
+            4. Nhấn **ENTER** để hoàn thành và lưu Mask.
+            """)
+            
+            if st.button("✂️ Mở Cửa Sổ Cắt Thủ Công", type="primary"):
                 # Lưu ảnh tạm để script con đọc
                 cv2.imwrite(TEMP_INPUT_PATH, image_bgr)
                 
-                # Xóa mask cũ
-                if os.path.exists(TEMP_MASK_PATH): os.remove(TEMP_MASK_PATH)
+                # Xóa mask cũ để tránh nhầm lẫn
+                if os.path.exists(TEMP_MASK_PATH): 
+                    os.remove(TEMP_MASK_PATH)
+                
                 st.session_state['processed_mask'] = None
 
-                with st.spinner("Đang mở cửa sổ vẽ... Vui lòng vẽ xong và nhấn 's' để lưu, 'q' để thoát."):
+                with st.spinner("Đang mở cửa sổ Intelligent Scissors... Vui lòng thao tác trên cửa sổ mới."):
                     try:
                         # Gọi script gui_mask.py bằng subprocess
-                        # Đảm bảo bạn có file gui_mask.py cùng thư mục
                         cmd = [sys.executable, "gui_mask.py", TEMP_INPUT_PATH, TEMP_MASK_PATH]
-                        subprocess.run(cmd, check=True)
+                        
+                        # Chạy lệnh
+                        result = subprocess.run(cmd, capture_output=True, text=True)
+                        
+                        # In log ra terminal của Streamlit để debug nếu cần
+                        print(result.stdout)
+                        if result.stderr:
+                            print("STDERR:", result.stderr)
                         
                         # Kiểm tra kết quả
                         if os.path.exists(TEMP_MASK_PATH):
                             loaded_mask = cv2.imread(TEMP_MASK_PATH, cv2.IMREAD_GRAYSCALE)
                             if loaded_mask is not None:
-                                # Resize mask về đúng size ảnh gốc (phòng hờ)
+                                # Resize mask về đúng size ảnh gốc (an toàn)
                                 if loaded_mask.shape[:2] != image_bgr.shape[:2]:
                                     loaded_mask = cv2.resize(loaded_mask, (image_bgr.shape[1], image_bgr.shape[0]))
                                 
                                 st.session_state['processed_mask'] = loaded_mask
-                                st.success("✅ Đã lấy Mask từ cửa sổ vẽ!")
-                                st.rerun() # Rerun để hiển thị mask bên cột 2
+                                st.success("✅ Đã tạo Mask thành công!")
+                                st.rerun() # Reload lại trang
                             else:
-                                st.error("File mask bị lỗi.")
+                                st.error("⚠️ File mask được tạo nhưng không đọc được.")
                         else:
-                            st.warning("⚠️ Bạn đã đóng cửa sổ mà không lưu mask.")
+                            st.warning("⚠️ Bạn đã đóng cửa sổ mà không nhấn Enter để lưu mask.")
+                            
                     except subprocess.CalledProcessError as e:
                         st.error(f"Lỗi khi chạy gui_mask.py: {e}")
-                        st.info("Đảm bảo file 'gui_mask.py' nằm cùng thư mục với file này.")
+
 
     # === CỘT 2: KIỂM TRA MASK & INPAINT ===
     # === CỘT 2: KIỂM TRA MASK & EDIT & INPAINT ===
@@ -217,35 +234,48 @@ if uploaded_file is not None:
             st.image(st.session_state['processed_mask'], caption="Mask hiện tại", use_column_width=True, clamp=True)
 
             # 2. Nút Chỉnh sửa thủ công (Refine)
-            # Logic: Lưu mask hiện tại ra file -> Gọi GUI -> Load lại mask
             st.write("---")
-            if st.button("✏️ Chỉnh sửa / Bỏ chọn vùng thừa"):
-                # A. Lưu ảnh gốc và mask hiện tại xuống đĩa
-                cv2.imwrite(TEMP_INPUT_PATH, image_bgr)
-                cv2.imwrite(TEMP_MASK_PATH, st.session_state['processed_mask'])
-                
-                # B. Mở cửa sổ vẽ
-                st.info("Đang mở cửa sổ... Chuột Trái: Vẽ | Chuột Phải: Xóa. Nhấn 'S' để Lưu.")
-                try:
-                    cmd = [sys.executable, "gui_mask.py", TEMP_INPUT_PATH, TEMP_MASK_PATH]
-                    subprocess.run(cmd, check=True)
+            col_btn_1, col_btn_2 = st.columns([1, 1])
+            
+            with col_btn_1:
+                 # Nút này dùng để "vẽ tiếp" lên mask AI đã tạo
+                 if st.button("✏️ Sửa Mask (Brush/Eraser)"):
+                    # A. Lưu ảnh gốc và mask hiện tại xuống đĩa
+                    cv2.imwrite(TEMP_INPUT_PATH, image_bgr)
                     
-                    # C. Load lại mask sau khi đã chỉnh sửa
-                    if os.path.exists(TEMP_MASK_PATH):
-                        refined_mask = cv2.imread(TEMP_MASK_PATH, cv2.IMREAD_GRAYSCALE)
-                        if refined_mask is not None:
-                            # Resize cho chắc chắn
-                            if refined_mask.shape[:2] != image_bgr.shape[:2]:
-                                refined_mask = cv2.resize(refined_mask, (image_bgr.shape[1], image_bgr.shape[0]))
-                            
-                            # Cập nhật Session State
-                            st.session_state['processed_mask'] = refined_mask
-                            st.success("✅ Đã cập nhật Mask!")
-                            st.rerun() # Reload lại trang để hiện mask mới
-                except Exception as e:
-                    st.error(f"Lỗi khi mở cửa sổ chỉnh sửa: {e}")
+                    # Quan trọng: Lưu mask hiện tại để gui_refine load lên
+                    cv2.imwrite(TEMP_MASK_PATH, st.session_state['processed_mask'])
+                    
+                    st.info("Đang mở cửa sổ Brush... Hãy kiểm tra thanh Taskbar nếu cửa sổ bị ẩn.")
+                    
+                    try:
+                        # GỌI FILE MỚI: gui_refine.py
+                        cmd = [sys.executable, "gui_refine.py", TEMP_INPUT_PATH, TEMP_MASK_PATH]
+                        subprocess.run(cmd, check=True)
+                        
+                        # C. Load lại mask sau khi đã chỉnh sửa
+                        if os.path.exists(TEMP_MASK_PATH):
+                            refined_mask = cv2.imread(TEMP_MASK_PATH, cv2.IMREAD_GRAYSCALE)
+                            if refined_mask is not None:
+                                # Resize an toàn
+                                if refined_mask.shape[:2] != image_bgr.shape[:2]:
+                                    refined_mask = cv2.resize(refined_mask, (image_bgr.shape[1], image_bgr.shape[0]))
+                                
+                                # Cập nhật Session State
+                                st.session_state['processed_mask'] = refined_mask
+                                st.success("✅ Đã cập nhật Mask!")
+                                st.rerun()
+                    except Exception as e:
+                        st.error(f"Lỗi: {e}")
+
+            with col_btn_2:
+                # Nút Reset Mask về ban đầu (nếu lỡ tay vẽ sai quá nhiều)
+                if st.button("❌ Xóa Mask làm lại"):
+                     st.session_state['processed_mask'] = None
+                     st.rerun()
 
             st.write("---")
+            # ... (Tiếp tục đoạn code Inpainting) ...
 
             # 3. Nút Chạy Inpainting (LaMa)
             if st.button("🚀 Bước 3: Xóa Vật Thể (LaMa)", type="primary"):

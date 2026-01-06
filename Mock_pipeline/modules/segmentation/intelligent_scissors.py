@@ -182,26 +182,39 @@ class IntelligentScissorsApp:
         self.update_display()
         print("--- HƯỚNG DẪN ---")
         print("1. Chuột Trái: Thêm điểm neo.")
-        print("2. Chuột Phải / Enter: Kết thúc vòng dây (Lưu vào Mask).")
-        print("3. Phím 'X': XÓA vùng đã chọn (Inpaint).")
-        print("4. Phím 'S': Lưu ảnh Mask ra file (mask_result.png).")
-        print("5. Backspace: Undo.")
-        print("6. ESC: Thoát.")
+        print("2. Chuột Phải: Kết thúc 1 vùng chọn (nhưng chưa thoát).")
+        print("3. ENTER: LƯU MASK VÀ THOÁT.")
+        print("4. Backspace: Undo.")
+        print("5. ESC: Thoát không lưu.")
         
         while True:
             key = cv2.waitKey(20) & 0xFF
             
-            if key == 27: # ESC
+            if key == 27: # ESC -> Thoát mà không lưu (hoặc lưu rỗng)
+                print("Đã nhấn ESC. Hủy bỏ.")
+                self.mask = None 
                 break
-            elif key == 13: # Enter -> Kết thúc vòng
+
+            elif key == 13: # Enter -> Lưu và Thoát
+                print("Đã nhấn Enter. Đang xử lý mask và thoát...")
+                
+                # 1. Nếu đang vẽ dở thì đóng vòng dây lại trước
                 if self.is_started:
                     self.finish_drawing()
+                
+                # 2. Gán global_mask vào biến 'mask' để script bên ngoài đọc được
+                self.mask = self.global_mask 
+
+                # 3. [QUAN TRỌNG] Lệnh này giúp thoát khỏi vòng lặp while -> Đóng cửa sổ
+                break 
+
             elif key == 8: # Backspace -> Undo
                 self.undo_last_step()
-            elif key == ord('x') or key == ord('X'): # Phím X -> Xóa
+
+            elif key == ord('x') or key == ord('X'): # Phím X -> Xóa vùng (Demo)
                 self.delete_masked_area()
-            elif key == ord('s') or key == ord('S'): # Phím S -> Lưu mask
+                
+            elif key == ord('s') or key == ord('S'): # Phím S -> Lưu file ảnh (Option)
                 self.save_mask_to_file()
         
         cv2.destroyAllWindows()
-
